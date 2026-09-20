@@ -1,4 +1,5 @@
 const geofenceService = require('../services/geofenceService');
+const { isInsideCampus, haversineDistanceMeters } = require('../utils/geo');
 
 // Get current geofence (cached)
 exports.getGeofence = async (req, res) => {
@@ -26,25 +27,25 @@ exports.updateGeofence = async (req, res) => {
     // Check if there's an existing geofence to update
     const currentGeofence = geofenceService.getGeofence();
     let doc;
-    
+
     if (currentGeofence.id) {
       // Update existing geofence
-      doc = await geofenceService.updateExistingGeofence(currentGeofence.id, { 
-        center, 
-        radiusMeters, 
-        updatedBy: req.user._id, 
-        note 
+      doc = await geofenceService.updateExistingGeofence(currentGeofence.id, {
+        center,
+        radiusMeters,
+        updatedBy: req.user._id,
+        note
       });
     } else {
       // Create new geofence
-      doc = await geofenceService.updateGeofence({ 
-        center, 
-        radiusMeters, 
-        updatedBy: req.user._id, 
-        note 
+      doc = await geofenceService.updateGeofence({
+        center,
+        radiusMeters,
+        updatedBy: req.user._id,
+        note
       });
     }
-    
+
     return res.json({ success: true, message: 'Geofence updated', geofence: doc });
   } catch (e) {
     console.error('Update geofence error:', e);
@@ -61,24 +62,25 @@ exports.testGeofence = async (req, res) => {
     }
 
     const gf = geofenceService.getGeofence();
-    const { isInsideCampus } = require('../utils/geo');
-    const inside = isInsideCampus({ lat, lng });
-    
-    return res.json({ 
-      success: true, 
+
+    // Check if geofence is valid
+    if (!gf || !gf.center) {
+      return res.status(400).json({ success: false, msg: 'Geofence not configured properly' });
+    }
+
+    // Pass the geofence object directly to avoid circular dependency lookups
+    const inside = isInsideCampus({ lat, lng }, gf);
+    const distance = haversineDistanceMeters(gf.center, { lat, lng });
+
+    return res.json({
+      success: true,
       inside,
       coordinates: { lat, lng },
       geofence: gf,
-      distance: calculateDistance(gf.center, { lat, lng })
+      distance
     });
   } catch (e) {
     console.error('Test geofence error:', e);
-    return res.status(500).json({ success: false, msg: 'Error testing geofence' });
+    return res.status(500).json({ success: false, msg: 'Error testing geofence: ' + e.message });
   }
 };
-
-// Helper function to calculate distance for debugging
-function calculateDistance(center, point) {
-  const { haversineDistanceMeters } = require('../utils/geo');
-  return haversineDistanceMeters(center, point);
-}

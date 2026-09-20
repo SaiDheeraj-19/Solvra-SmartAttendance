@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5005/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 // Helper function to handle API calls with better error handling
 const apiCall = async (url: string, options: RequestInit) => {
@@ -8,7 +8,7 @@ const apiCall = async (url: string, options: RequestInit) => {
       // Add timeout to prevent hanging requests
       signal: AbortSignal.timeout(30000)
     });
-    
+
     if (!response.ok) {
       let errorMessage = 'An error occurred';
       try {
@@ -20,19 +20,19 @@ const apiCall = async (url: string, options: RequestInit) => {
       }
       throw new Error(errorMessage);
     }
-    
+
     return await response.json();
   } catch (error) {
     // Handle network errors specifically
     if (error instanceof TypeError && error.message === 'Failed to fetch') {
       throw new Error('Network error: Unable to connect to the server. Please check your internet connection and try again.');
     }
-    
+
     // Handle timeout errors
     if (error instanceof DOMException && error.name === 'TimeoutError') {
       throw new Error('Request timeout: The server is taking too long to respond. Please try again.');
     }
-    
+
     // Re-throw other errors
     throw error;
   }
@@ -96,7 +96,7 @@ export const authAPI = {
     // For JWT-based auth, logout is typically handled client-side
     // Remove token from localStorage
     localStorage.removeItem('token');
-    
+
     // Optional: Call backend logout endpoint if one exists
     try {
       await fetch(`${API_BASE_URL}/auth/logout`, {
@@ -395,10 +395,18 @@ export const getCurrentUser = () => {
   const token = localStorage.getItem('token');
   if (token) {
     try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
+      // Basic check for JWT format (header.payload.signature)
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        throw new Error('Invalid token format');
+      }
+
+      const payload = JSON.parse(atob(parts[1]));
       return payload;
     } catch (error) {
-      console.log('Error parsing JWT token:', error);
+      console.error('Error parsing JWT token:', error);
+      // If token is invalid/corrupted, clear it to prevent persistent errors
+      localStorage.removeItem('token');
       return null;
     }
   }
@@ -430,16 +438,16 @@ export const getUserDashboardPath = (userRole: string) => {
 export const refreshUserData = async () => {
   // Clear any cached data
   localStorage.removeItem('cachedProfile');
-  
+
   // Fetch fresh profile data
   const profile = await authAPI.getProfile();
-  
+
   // Cache the fresh data
   localStorage.setItem('cachedProfile', JSON.stringify({
     data: profile,
     timestamp: Date.now()
   }));
-  
+
   return profile;
 };
 
@@ -447,7 +455,7 @@ export const refreshUserData = async () => {
 export const getCachedUserData = () => {
   const cached = localStorage.getItem('cachedProfile');
   if (!cached) return null;
-  
+
   try {
     const parsed = JSON.parse(cached);
     // Expire cache after 5 minutes

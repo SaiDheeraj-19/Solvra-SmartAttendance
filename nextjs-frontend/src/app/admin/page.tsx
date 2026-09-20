@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Camera, Settings, BarChart3, Shield, TrendingUp, UserPlus, Search, MapPin, LogOut, Plus, X, Edit3, QrCode } from 'lucide-react';
+import { Users, Camera, Settings, BarChart3, Shield, TrendingUp, UserPlus, Search, MapPin, LogOut, Plus, X, Edit3, QrCode, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import Webcam from 'react-webcam';
 import { authAPI, redirectToLogin } from '@/services/api';
 
@@ -10,10 +10,14 @@ export default function AdminPortal() {
   const [activeTab, setActiveTab] = useState('analytics');
   const [showFaceRegistration, setShowFaceRegistration] = useState(false);
   const [geofenceSettings, setGeofenceSettings] = useState({
-    lat: 15.775002,
+    lat: 15.775002, // Default fallback
     lng: 78.057125,
     radius: 500
   });
+  const [testResult, setTestResult] = useState<{ inside: boolean, distance: number } | null>(null);
+  const [testingLocation, setTestingLocation] = useState(false);
+  const [savingGeofence, setSavingGeofence] = useState(false);
+  const [geoMessage, setGeoMessage] = useState({ type: '', text: '' });
   const [profileData, setProfileData] = useState({
     name: '',
     role: ''
@@ -28,7 +32,7 @@ export default function AdminPortal() {
     department: '',
     role: 'student'
   });
-  const [users, setUsers] = useState<Array<{id: number, name: string, email: string, role: string, status: string}>>([]);
+  const [users, setUsers] = useState<Array<{ id: number, name: string, email: string, role: string, status: string }>>([]);
   const [loadingData, setLoadingData] = useState(true);
   const webcamRef = useRef<Webcam>(null);
 
@@ -43,8 +47,27 @@ export default function AdminPortal() {
           role: profile.role || ''
         });
 
-        // For now, we'll use mock data for users since there's no specific API endpoint
-        // In a real implementation, you would fetch this from an API
+        // Fetch geofence data
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
+            const geoRes = await fetch('/api/admin/geofence', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const geoData = await geoRes.json();
+            if (geoData.success && geoData.geofence) {
+              setGeofenceSettings({
+                lat: geoData.geofence.center?.lat || 15.775002,
+                lng: geoData.geofence.center?.lng || 78.057125,
+                radius: geoData.geofence.radiusMeters || 500
+              });
+            }
+          } catch (e) {
+            console.error('Failed to fetch geofence:', e);
+          }
+        }
+
+        // For now, we'll use mock users data
         const mockUsers = [
           { id: 1, name: 'John Doe', email: 'john@university.edu', role: 'Student', status: 'Active' },
           { id: 2, name: 'Jane Smith', email: 'jane@university.edu', role: 'Student', status: 'Active' },
@@ -54,12 +77,10 @@ export default function AdminPortal() {
         setUsers(mockUsers);
       } catch (error: unknown) {
         console.error('Failed to fetch data:', error);
-        // Even in case of error, we can still show mock data
+        // Fallback mock data
         const mockUsers = [
           { id: 1, name: 'John Doe', email: 'john@university.edu', role: 'Student', status: 'Active' },
           { id: 2, name: 'Jane Smith', email: 'jane@university.edu', role: 'Student', status: 'Active' },
-          { id: 3, name: 'Prof. Williams', email: 'williams@university.edu', role: 'Faculty', status: 'Active' },
-          { id: 4, name: 'Dr. Johnson', email: 'johnson@university.edu', role: 'Faculty', status: 'Active' },
         ];
         setUsers(mockUsers);
       } finally {
@@ -117,9 +138,104 @@ export default function AdminPortal() {
   };
 
   // Save geofence settings
-  const saveGeofenceSettings = () => {
-    console.log('Geofence settings saved:', geofenceSettings);
-    alert('Geofence settings saved successfully!');
+  const saveGeofenceSettings = async () => {
+    setSavingGeofence(true);
+    setGeoMessage({ type: '', text: '' });
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/admin/geofence', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          center: { lat: parseFloat(String(geofenceSettings.lat)), lng: parseFloat(String(geofenceSettings.lng)) },
+          radiusMeters: parseInt(String(geofenceSettings.radius))
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setGeoMessage({ type: 'success', text: 'Geofence settings updated successfully!' });
+      } else {
+        throw new Error(data.msg || 'Failed to update');
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Error saving settings';
+      setGeoMessage({ type: 'error', text: errorMessage });
+    } finally {
+      setSavingGeofence(false);
+      setTimeout(() => setGeoMessage({ type: '', text: '' }), 3000);
+    }
+  };
+
+  // Test current location
+  const testCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setTestingLocation(true);
+    setTestResult(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await fetch('/api/admin/geofence/test', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            })
+          });
+          const data = await response.json();
+          if (data.success) {
+            setTestResult({
+              inside: data.inside,
+              distance: data.distance
+            });
+          } else {
+            alert('Test failed: ' + (data.msg || 'Unknown error'));
+          }
+        } catch (error) {
+          console.error('Test error:', error);
+          alert('Error testing location');
+        } finally {
+          setTestingLocation(false);
+        }
+      },
+      (error) => {
+        setTestingLocation(false);
+        alert('Error getting location: ' + error.message);
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
+  // Set center to current location
+  const setCenterToCurrent = () => {
+    setSavingGeofence(true); // Reusing loading state for feedback
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setGeofenceSettings(prev => ({
+          ...prev,
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        }));
+        setSavingGeofence(false);
+      },
+      (err) => {
+        setSavingGeofence(false);
+        alert('Location error: ' + err.message);
+      },
+      { enableHighAccuracy: true }
+    );
   };
 
   // Capture face image for registration
@@ -150,7 +266,7 @@ export default function AdminPortal() {
             <span className="text-body-md text-text-primary bg-accent-bronze/10 px-3 py-1 rounded-full">
               {profileData.name || 'Admin User'} ({formatRole(profileData.role || 'Administrator')})
             </span>
-            <button 
+            <button
               onClick={handleLogout}
               className="logout-button text-text-secondary hover:text-bronze transition-colors flex items-center gap-2"
             >
@@ -198,11 +314,10 @@ export default function AdminPortal() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 py-4 border-b-2 transition-all font-medium ${
-                    activeTab === tab.id
-                      ? 'border-accent-bronze text-accent-bronze'
-                      : 'border-transparent text-text-secondary hover:text-text-primary'
-                  }`}
+                  className={`flex items-center gap-2 py-4 border-b-2 transition-all font-medium ${activeTab === tab.id
+                    ? 'border-accent-bronze text-accent-bronze'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                    }`}
                 >
                   <tab.icon className="w-5 h-5" />
                   <span className="text-label uppercase tracking-wider">{tab.label}</span>
@@ -251,7 +366,7 @@ export default function AdminPortal() {
               >
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-subheader-lg text-text-primary font-serif">User Management System</h2>
-                  <button 
+                  <button
                     onClick={() => {
                       // Reset form data
                       setRegistrationData({
@@ -333,7 +448,7 @@ export default function AdminPortal() {
                     <h2 className="text-subheader-lg text-text-primary mb-2 font-serif">Face Data Management</h2>
                     <p className="text-body-md text-text-secondary">Manage biometric face registration for all users</p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setShowFaceRegistration(true)}
                     className="premium-button primary px-6 py-3 rounded-full text-label uppercase tracking-wider flex items-center gap-2"
                   >
@@ -341,7 +456,7 @@ export default function AdminPortal() {
                     Register New Face
                   </button>
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[1, 2, 3, 4, 5, 6].map((item) => (
                     <div key={item} className="premium-card p-6 rounded-xl text-center hover:shadow-soft transition-all border border-primary">
@@ -365,10 +480,10 @@ export default function AdminPortal() {
                     </div>
                   ))}
                 </div>
-                
+
                 {/* Face Registration Modal */}
                 {showFaceRegistration && (
-                  <div 
+                  <div
                     className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
                     onClick={(e) => {
                       // Close modal when clicking on backdrop
@@ -380,7 +495,7 @@ export default function AdminPortal() {
                     <div className="premium-card p-6 rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto relative">
                       <div className="flex justify-between items-center mb-4">
                         <h3 className="text-subheader-md text-text-primary font-medium">Register Student Face</h3>
-                        <button 
+                        <button
                           onClick={() => setShowFaceRegistration(false)}
                           className="text-text-secondary hover:text-bronze"
                           aria-label="Close"
@@ -388,7 +503,7 @@ export default function AdminPortal() {
                           <X className="w-5 h-5" />
                         </button>
                       </div>
-                      
+
                       <div className="space-y-4">
                         <div>
                           <label className="block text-label text-text-secondary mb-2">Student ID</label>
@@ -398,7 +513,7 @@ export default function AdminPortal() {
                             className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                           />
                         </div>
-                        
+
                         <div>
                           <label className="block text-label text-text-secondary mb-2">Student Name</label>
                           <input
@@ -407,7 +522,7 @@ export default function AdminPortal() {
                             className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                           />
                         </div>
-                        
+
                         <div className="text-center">
                           <div className="bg-gray-200 rounded-lg h-48 flex items-center justify-center mb-4 relative overflow-hidden">
                             <Webcam
@@ -418,7 +533,7 @@ export default function AdminPortal() {
                             />
                             <div className="absolute inset-0 border-4 border-accent-bronze rounded-lg pointer-events-none"></div>
                           </div>
-                          <button 
+                          <button
                             onClick={captureFaceImage}
                             className="premium-button primary px-6 py-3 rounded-full text-label flex items-center gap-2 mx-auto"
                           >
@@ -426,9 +541,9 @@ export default function AdminPortal() {
                             Capture Face
                           </button>
                         </div>
-                        
+
                         <div className="flex gap-3">
-                          <button 
+                          <button
                             onClick={() => setShowFaceRegistration(false)}
                             className="premium-button w-full py-3 rounded-full text-label border border-primary"
                           >
@@ -460,7 +575,7 @@ export default function AdminPortal() {
                     Admin Only
                   </span>
                 </div>
-                
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Geofencing Settings */}
                   <div className="premium-card p-6 rounded-xl shadow-soft border border-primary">
@@ -473,6 +588,7 @@ export default function AdminPortal() {
                         <label className="block text-label text-text-secondary mb-2 uppercase tracking-wider">Campus Latitude</label>
                         <input
                           type="text"
+                          inputMode="decimal"
                           value={geofenceSettings.lat}
                           onChange={(e) => handleGeofenceChange('lat', e.target.value)}
                           className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
@@ -482,6 +598,7 @@ export default function AdminPortal() {
                         <label className="block text-label text-text-secondary mb-2 uppercase tracking-wider">Campus Longitude</label>
                         <input
                           type="text"
+                          inputMode="decimal"
                           value={geofenceSettings.lng}
                           onChange={(e) => handleGeofenceChange('lng', e.target.value)}
                           className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
@@ -490,18 +607,67 @@ export default function AdminPortal() {
                       <div>
                         <label className="block text-label text-text-secondary mb-2 uppercase tracking-wider">Radius (meters)</label>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           value={geofenceSettings.radius}
                           onChange={(e) => handleGeofenceChange('radius', e.target.value)}
                           className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                         />
                       </div>
-                      <button
-                        onClick={saveGeofenceSettings}
-                        className="premium-button primary px-6 py-3 rounded-full text-label uppercase tracking-wider w-full"
-                      >
-                        Save Geofence Settings
-                      </button>
+
+                      {geoMessage.text && (
+                        <div className={`p-3 rounded-lg text-sm ${geoMessage.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {geoMessage.text}
+                        </div>
+                      )}
+
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={setCenterToCurrent}
+                          disabled={savingGeofence}
+                          className="premium-button bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-3 rounded-full text-label uppercase tracking-wider flex-1 flex items-center justify-center gap-2"
+                        >
+                          <MapPin className="w-4 h-4" /> Use My Location
+                        </button>
+                        <button
+                          onClick={saveGeofenceSettings}
+                          disabled={savingGeofence}
+                          className="premium-button primary px-6 py-3 rounded-full text-label uppercase tracking-wider flex-1 flex items-center justify-center gap-2"
+                        >
+                          {savingGeofence ? <Loader2 className="animate-spin w-4 h-4" /> : 'Save Settings'}
+                        </button>
+                      </div>
+
+                      {/* Test Location Section */}
+                      <div className="mt-6 pt-6 border-t border-gray-200">
+                        <h4 className="text-body-md font-medium text-text-primary mb-3">Test Location Verification</h4>
+                        <button
+                          onClick={testCurrentLocation}
+                          disabled={testingLocation}
+                          className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-3 rounded-lg text-label uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
+                        >
+                          {testingLocation ? <Loader2 className="animate-spin w-4 h-4" /> : <Shield className="w-4 h-4" />}
+                          Check If I&apos;m Inside
+                        </button>
+
+                        {testResult && (
+                          <div className={`mt-4 p-4 rounded-lg flex items-center gap-3 ${testResult.inside ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                            {testResult.inside ? (
+                              <CheckCircle className="w-8 h-8 text-green-600" />
+                            ) : (
+                              <XCircle className="w-8 h-8 text-red-600" />
+                            )}
+                            <div>
+                              <p className={`font-bold ${testResult.inside ? 'text-green-800' : 'text-red-800'}`}>
+                                {testResult.inside ? 'You are Inside Campus' : 'You are Outside Campus'}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                Distance from center: <strong>{Math.round(testResult.distance)} meters</strong>
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -521,12 +687,10 @@ export default function AdminPortal() {
                         <div key={i} className="border-b border-primary pb-4 last:border-0 last:pb-0">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-body-md text-text-primary font-medium">{setting.label}</span>
-                            <div className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${
-                              setting.enabled ? 'bg-accent-bronze' : 'bg-primary-card border border-primary'
-                            }`}>
-                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${
-                                setting.enabled ? 'right-1' : 'left-1'
-                              }`} />
+                            <div className={`w-12 h-6 rounded-full relative cursor-pointer transition-colors ${setting.enabled ? 'bg-accent-bronze' : 'bg-primary-card border border-primary'
+                              }`}>
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${setting.enabled ? 'right-1' : 'left-1'
+                                }`} />
                             </div>
                           </div>
                           <p className="text-body-sm text-text-secondary">{setting.description}</p>
@@ -534,7 +698,7 @@ export default function AdminPortal() {
                       ))}
                     </div>
                   </div>
-                  
+
                   {/* QR Code Settings */}
                   <div className="premium-card p-6 rounded-xl shadow-soft border border-primary lg:col-span-2">
                     <div className="flex items-center gap-3 mb-6">
@@ -577,7 +741,7 @@ export default function AdminPortal() {
 
       {/* Registration Modal */}
       {showRegistrationModal && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={(e) => {
             // Close modal when clicking on backdrop
@@ -589,7 +753,7 @@ export default function AdminPortal() {
           <div className="premium-card p-6 rounded-xl max-w-md w-full max-h-[90vh] overflow-y-auto relative">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-subheader-md text-text-primary font-medium">Register New User</h3>
-              <button 
+              <button
                 onClick={() => setShowRegistrationModal(false)}
                 className="text-text-secondary hover:text-bronze"
                 aria-label="Close"
@@ -597,13 +761,13 @@ export default function AdminPortal() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-label text-text-secondary mb-2">User Role</label>
                 <select
                   value={registrationData.role}
-                  onChange={(e) => setRegistrationData({...registrationData, role: e.target.value})}
+                  onChange={(e) => setRegistrationData({ ...registrationData, role: e.target.value })}
                   className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                 >
                   <option value="student">Student</option>
@@ -612,91 +776,91 @@ export default function AdminPortal() {
                   <option value="dean">Dean (Admin)</option>
                 </select>
               </div>
-              
+
               <div>
                 <label className="block text-label text-text-secondary mb-2">Full Name</label>
                 <input
                   type="text"
                   value={registrationData.name}
-                  onChange={(e) => setRegistrationData({...registrationData, name: e.target.value})}
+                  onChange={(e) => setRegistrationData({ ...registrationData, name: e.target.value })}
                   placeholder="Enter full name"
                   className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-label text-text-secondary mb-2">Email</label>
                 <input
                   type="email"
                   value={registrationData.email}
-                  onChange={(e) => setRegistrationData({...registrationData, email: e.target.value})}
+                  onChange={(e) => setRegistrationData({ ...registrationData, email: e.target.value })}
                   placeholder="Enter email address"
                   className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-label text-text-secondary mb-2">Password</label>
                 <input
                   type="password"
                   value={registrationData.password}
-                  onChange={(e) => setRegistrationData({...registrationData, password: e.target.value})}
+                  onChange={(e) => setRegistrationData({ ...registrationData, password: e.target.value })}
                   placeholder="Enter password"
                   className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                 />
               </div>
-              
+
               {registrationData.role === 'student' && (
                 <div>
                   <label className="block text-label text-text-secondary mb-2">Student ID</label>
                   <input
                     type="text"
                     value={registrationData.studentId}
-                    onChange={(e) => setRegistrationData({...registrationData, studentId: e.target.value})}
+                    onChange={(e) => setRegistrationData({ ...registrationData, studentId: e.target.value })}
                     placeholder="Enter student ID"
                     className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                   />
                 </div>
               )}
-              
+
               {(registrationData.role === 'faculty' || registrationData.role === 'hod' || registrationData.role === 'dean') && (
                 <>
                   <div>
                     <label className="block text-label text-text-secondary mb-2">
-                      {registrationData.role === 'faculty' ? 'Employee ID' : 
-                       registrationData.role === 'hod' ? 'HOD ID' : 'Dean ID'}
+                      {registrationData.role === 'faculty' ? 'Employee ID' :
+                        registrationData.role === 'hod' ? 'HOD ID' : 'Dean ID'}
                     </label>
                     <input
                       type="text"
                       value={registrationData.employeeId}
-                      onChange={(e) => setRegistrationData({...registrationData, employeeId: e.target.value})}
-                      placeholder={`Enter ${registrationData.role === 'faculty' ? 'employee' : 
-                                   registrationData.role === 'hod' ? 'HOD' : 'Dean'} ID`}
+                      onChange={(e) => setRegistrationData({ ...registrationData, employeeId: e.target.value })}
+                      placeholder={`Enter ${registrationData.role === 'faculty' ? 'employee' :
+                        registrationData.role === 'hod' ? 'HOD' : 'Dean'} ID`}
                       className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                     />
                   </div>
-                  
+
                   <div>
                     <label className="block text-label text-text-secondary mb-2">Department</label>
                     <input
                       type="text"
                       value={registrationData.department}
-                      onChange={(e) => setRegistrationData({...registrationData, department: e.target.value})}
+                      onChange={(e) => setRegistrationData({ ...registrationData, department: e.target.value })}
                       placeholder="Enter department"
                       className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                     />
                   </div>
                 </>
               )}
-              
+
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => setShowRegistrationModal(false)}
                   className="premium-button w-full py-3 rounded-full text-label border border-primary"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={async () => {
                     try {
                       // Validate required fields
@@ -704,18 +868,18 @@ export default function AdminPortal() {
                         alert('Please fill in all required fields');
                         return;
                       }
-                      
+
                       if (registrationData.role === 'student' && !registrationData.studentId) {
                         alert('Please enter Student ID');
                         return;
                       }
-                      
-                      if ((registrationData.role === 'faculty' || registrationData.role === 'hod' || registrationData.role === 'dean') && 
-                          (!registrationData.employeeId || !registrationData.department)) {
+
+                      if ((registrationData.role === 'faculty' || registrationData.role === 'hod' || registrationData.role === 'dean') &&
+                        (!registrationData.employeeId || !registrationData.department)) {
                         alert('Please enter both Employee ID and Department');
                         return;
                       }
-                      
+
                       if (registrationData.role === 'student') {
                         await authAPI.registerStudent({
                           name: registrationData.name,
@@ -732,11 +896,11 @@ export default function AdminPortal() {
                           department: registrationData.department
                         });
                       }
-                      
+
                       // Close modal and show success message
                       setShowRegistrationModal(false);
                       alert('User registered successfully!');
-                      
+
                       // In a real app, you would refresh the user list here
                     } catch (error: unknown) {
                       alert(error instanceof Error ? error.message : 'Registration failed');

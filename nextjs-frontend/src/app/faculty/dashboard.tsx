@@ -31,6 +31,7 @@ export default function EnhancedFacultyDashboard() {
     // Create QR data with location information
     const qrContent = {
       type: 'attendance',
+      source: 'SOLVRA_FACULTY_DASHBOARD', // Added for validation
       subject: subject,
       class: className,
       duration: duration,
@@ -38,7 +39,7 @@ export default function EnhancedFacultyDashboard() {
       timestamp: new Date().toISOString(),
       sessionId: Math.random().toString(36).substring(2, 15)
     };
-    
+
     try {
       const qrString = JSON.stringify(qrContent);
       const qrUrl = await QRCode.toDataURL(qrString);
@@ -61,10 +62,10 @@ export default function EnhancedFacultyDashboard() {
   // Register face with backend API
   const registerFaceWithBackend = async (imageData: string) => {
     setFaceRegistrationError(null);
-    
+
     try {
       const result = await faceService.registerFace(imageData);
-      
+
       if (result.success) {
         setFaceRegistrationSuccess(true);
         setCameraActive(false);
@@ -111,7 +112,7 @@ export default function EnhancedFacultyDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={handleLogout}
               className="logout-button text-text-secondary hover:text-bronze transition-colors flex items-center gap-2"
             >
@@ -156,11 +157,10 @@ export default function EnhancedFacultyDashboard() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 py-4 border-b-2 transition-all font-medium ${
-                    activeTab === tab.id
-                      ? 'border-accent-bronze text-accent-bronze'
-                      : 'border-transparent text-text-secondary hover:text-text-primary'
-                  }`}
+                  className={`flex items-center gap-2 py-4 border-b-2 transition-all font-medium ${activeTab === tab.id
+                    ? 'border-accent-bronze text-accent-bronze'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                    }`}
                 >
                   <tab.icon className="w-5 h-5" />
                   <span className="text-label uppercase tracking-wider">{tab.label}</span>
@@ -183,19 +183,19 @@ export default function EnhancedFacultyDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-label text-text-secondary mb-2 uppercase tracking-wider">Subject</label>
-                        <input 
-                          type="text" 
-                          className="premium-input w-full px-4 py-3 rounded-lg text-body-md" 
-                          id="subject" 
+                        <input
+                          type="text"
+                          className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
+                          id="subject"
                           placeholder="Enter subject name"
                         />
                       </div>
                       <div>
                         <label className="block text-label text-text-secondary mb-2 uppercase tracking-wider">Class</label>
-                        <input 
-                          type="text" 
-                          className="premium-input w-full px-4 py-3 rounded-lg text-body-md" 
-                          id="class" 
+                        <input
+                          type="text"
+                          className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
+                          id="class"
                           placeholder="Enter class name"
                         />
                       </div>
@@ -233,6 +233,7 @@ export default function EnhancedFacultyDashboard() {
                 ) : (
                   <div className="text-center space-y-6">
                     <div className="premium-card p-8 rounded-xl inline-block border-bronze-glow">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={qrData} alt="Attendance QR Code" className="w-64 h-64" />
                     </div>
                     <div className="premium-card p-6 rounded-xl">
@@ -337,14 +338,14 @@ export default function EnhancedFacultyDashboard() {
                 className="max-w-3xl mx-auto"
               >
                 <h2 className="text-header-md text-text-primary mb-8 text-center font-serif">Face Management</h2>
-                
+
                 <div className="space-y-8">
                   <div className="premium-card p-6 rounded-xl">
                     <h3 className="text-subheader-md text-text-primary mb-4 font-medium">Register Your Face</h3>
                     <p className="text-body-md text-text-secondary mb-6">
                       Register your face for enhanced security and access control within the system.
                     </p>
-                    
+
                     {faceRegistrationSuccess ? (
                       <div className="text-center py-8">
                         <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
@@ -385,7 +386,7 @@ export default function EnhancedFacultyDashboard() {
                             instruction="Position your face in the frame and click the camera button to register"
                           />
                         )}
-                        
+
                         {faceRegistrationError && (
                           <div className="premium-card p-4 rounded-xl bg-red-50 border border-red-200 mt-4">
                             <div className="flex items-start gap-3">
@@ -409,7 +410,7 @@ export default function EnhancedFacultyDashboard() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="premium-card p-6 rounded-xl">
                     <h3 className="text-subheader-md text-text-primary mb-4 font-medium">Face Verification Settings</h3>
                     <div className="space-y-4">

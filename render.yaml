@@ -28,4 +28,9 @@ services:
     plan: free
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        sync: false
+        value: /api
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: solvra-backend
+          property: url

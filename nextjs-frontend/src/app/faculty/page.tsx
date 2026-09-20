@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { QrCode, BarChart3, Users, Clock, Download, Plus, LogOut, MapPin, Camera, CheckCircle, AlertCircle, User, Edit3, Lock, X, Eye, EyeOff, GraduationCap } from 'lucide-react';
 import QRCode from 'qrcode';
 import FaceCamera from '@/components/FaceCamera';
-import Notification from '@/components/Notification';
+// import Notification from '@/components/Notification';
 import ProxyAttendance from '@/components/ProxyAttendance';
 import { faceService } from '@/services/faceService';
 import { authAPI, facultyAttendanceAPI, redirectToLogin } from '@/services/api';
@@ -20,13 +20,15 @@ export default function FacultyPortal() {
   const [faceRegistrationSuccess, setFaceRegistrationSuccess] = useState(false);
   const [faceRegistrationError, setFaceRegistrationError] = useState<string | null>(null);
   // Note: faceRegistrationLoading removed as it's not used in this component
-  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error' | 'warning' | 'info'} | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
   const [profileData, setProfileData] = useState({
     name: '',
     department: ''
   });
   // Add state for profile picture
   const [profilePicture, setProfilePicture] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
   // Add state for editing profile
   const [editingProfile, setEditingProfile] = useState(false);
@@ -52,10 +54,10 @@ export default function FacultyPortal() {
     requireFaceVerification: true,
     allowProxyAttendance: false
   });
-  
-  const [students, setStudents] = useState<Array<{id: string, name: string, email: string, studentId: string}>>([]);
+
+  const [students, setStudents] = useState<Array<{ id: string, name: string, email: string, studentId: string }>>([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [facultyOverview, setFacultyOverview] = useState<Array<{id: string, status: string, checkInAt?: string, user?: {name: string, studentId: string}}>>([]);
+  const [facultyOverview, setFacultyOverview] = useState<Array<{ id: string, status: string, checkInAt?: string, user?: { name: string, studentId: string } }>>([]);
   const [currentSession, setCurrentSession] = useState({
     subject: '',
     class: ''
@@ -75,7 +77,7 @@ export default function FacultyPortal() {
       subject,
       class: className
     });
-    
+
     // Create QR data with location information
     const qrContent = {
       type: 'attendance',
@@ -87,7 +89,7 @@ export default function FacultyPortal() {
       sessionId: Math.random().toString(36).substring(2, 15),
       expiresAt: new Date(Date.now() + parseInt(duration) * 60000).toISOString() // Add expiration time
     };
-    
+
     try {
       const qrString = JSON.stringify(qrContent);
       const qrUrl = await QRCode.toDataURL(qrString);
@@ -110,10 +112,10 @@ export default function FacultyPortal() {
   // Register face with backend API
   const registerFaceWithBackend = async (imageData: string) => {
     setFaceRegistrationError(null);
-    
+
     try {
       const result = await faceService.registerFace(imageData);
-      
+
       if (result.success) {
         setFaceRegistrationSuccess(true);
         setCameraActive(false);
@@ -150,7 +152,7 @@ export default function FacultyPortal() {
           name: profile.name || '',
           department: profile.department || ''
         });
-        
+
         // Set profile picture if it exists
         if (profile.profilePicture) {
           setProfilePicture(profile.profilePicture);
@@ -219,7 +221,7 @@ export default function FacultyPortal() {
             <span className="text-body-md text-text-primary bg-accent-bronze/10 px-3 py-1 rounded-full">
               {profileData.name || 'Faculty User'} ({profileData.department || 'Department'})
             </span>
-            <button 
+            <button
               onClick={handleLogout}
               className="logout-button text-text-secondary hover:text-bronze transition-colors flex items-center gap-2"
             >
@@ -266,11 +268,10 @@ export default function FacultyPortal() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 py-4 border-b-2 transition-all font-medium ${
-                    activeTab === tab.id
-                      ? 'border-accent-bronze text-accent-bronze'
-                      : 'border-transparent text-text-secondary hover:text-text-primary'
-                  }`}
+                  className={`flex items-center gap-2 py-4 border-b-2 transition-all font-medium ${activeTab === tab.id
+                    ? 'border-accent-bronze text-accent-bronze'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                    }`}
                 >
                   <tab.icon className="w-5 h-5" />
                   <span className="text-label uppercase tracking-wider">{tab.label}</span>
@@ -293,19 +294,19 @@ export default function FacultyPortal() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label className="block text-label text-text-secondary mb-2 uppercase tracking-wider">Subject</label>
-                        <input 
-                          type="text" 
-                          className="premium-input w-full px-4 py-3 rounded-lg text-body-md" 
-                          id="subject" 
+                        <input
+                          type="text"
+                          className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
+                          id="subject"
                           placeholder="Enter subject name"
                         />
                       </div>
                       <div>
                         <label className="block text-label text-text-secondary mb-2 uppercase tracking-wider">Class</label>
-                        <input 
-                          type="text" 
-                          className="premium-input w-full px-4 py-3 rounded-lg text-body-md" 
-                          id="class" 
+                        <input
+                          type="text"
+                          className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
+                          id="class"
                           placeholder="Enter class name"
                         />
                       </div>
@@ -348,6 +349,7 @@ export default function FacultyPortal() {
                 ) : (
                   <div className="text-center space-y-6">
                     <div className="premium-card p-8 rounded-xl inline-block border-bronze-glow">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={qrData} alt="Attendance QR Code" className="w-64 h-64" />
                     </div>
                     <div className="premium-card p-6 rounded-xl">
@@ -466,7 +468,7 @@ export default function FacultyPortal() {
                               {record.user?.name || 'Unknown Student'}
                             </p>
                             <p className="text-body-md text-text-secondary">
-                              {record.user?.studentId || 'N/A'} • {record.checkInAt ? new Date(record.checkInAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'No check-in'}
+                              {record.user?.studentId || 'N/A'} • {record.checkInAt ? new Date(record.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'No check-in'}
                             </p>
                           </div>
                         </div>
@@ -497,14 +499,14 @@ export default function FacultyPortal() {
                 className="max-w-3xl mx-auto"
               >
                 <h2 className="text-header-md text-text-primary mb-8 text-center font-serif">Face Management</h2>
-                
+
                 <div className="space-y-8">
                   <div className="premium-card p-6 rounded-xl">
                     <h3 className="text-subheader-md text-text-primary mb-4 font-medium">Register Your Face</h3>
                     <p className="text-body-md text-text-secondary mb-6">
                       Register your face for enhanced security and access control within the system.
                     </p>
-                    
+
                     {faceRegistrationSuccess ? (
                       <div className="text-center py-8">
                         <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
@@ -545,7 +547,7 @@ export default function FacultyPortal() {
                             instruction="Position your face in the frame and click the camera button to register"
                           />
                         )}
-                        
+
                         {faceRegistrationError && (
                           <div className="premium-card p-4 rounded-xl bg-red-50 border border-red-200 mt-4">
                             <div className="flex items-start gap-3">
@@ -569,7 +571,7 @@ export default function FacultyPortal() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="premium-card p-6 rounded-xl">
                     <h3 className="text-subheader-md text-text-primary mb-4 font-medium">Face Verification Settings</h3>
                     <div className="space-y-4">
@@ -598,7 +600,7 @@ export default function FacultyPortal() {
                 </div>
               </motion.div>
             )}
-            
+
             {activeTab === 'profile' && (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -606,16 +608,17 @@ export default function FacultyPortal() {
                 className="max-w-3xl mx-auto"
               >
                 <h2 className="text-header-md text-text-primary mb-8 text-center font-serif">My Profile</h2>
-                
+
                 <div className="space-y-8">
                   <div className="premium-card p-6 rounded-xl">
                     <div className="flex items-center gap-6 mb-6">
                       <div className="relative">
                         <div className="w-24 h-24 rounded-full bg-accent-bronze flex items-center justify-center overflow-hidden">
                           {profilePicture ? (
-                            <img 
-                              src={profilePicture} 
-                              alt="Profile" 
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={profilePicture}
+                              alt="Profile"
                               className="w-full h-full object-cover"
                             />
                           ) : (
@@ -648,7 +651,7 @@ export default function FacultyPortal() {
                         <h3 className="text-subheader-md text-text-primary font-medium">{profileData.name}</h3>
                         <p className="text-body-md text-text-secondary">{profileData.department} Department</p>
                         <div className="flex gap-2 mt-2">
-                          <button 
+                          <button
                             onClick={() => {
                               // Initialize edited data with current profile data
                               setEditedProfileData({
@@ -664,7 +667,7 @@ export default function FacultyPortal() {
                             <Edit3 className="w-4 h-4" />
                             Edit Profile
                           </button>
-                          <button 
+                          <button
                             onClick={async () => {
                               try {
                                 // Save any changes including profile picture
@@ -675,7 +678,7 @@ export default function FacultyPortal() {
                                 };
 
                                 // Update profile data
-                                const updatedProfile = await authAPI.updateProfile(profileUpdateData);
+                                await authAPI.updateProfile(profileUpdateData);
                                 setProfileData({
                                   name: profileData.name,
                                   department: profileData.department
@@ -698,7 +701,7 @@ export default function FacultyPortal() {
                         </div>
                       </div>
                     </div>
-                    
+
                     {editingProfile ? (
                       // Edit Profile Form
                       <div className="space-y-6">
@@ -708,7 +711,7 @@ export default function FacultyPortal() {
                             <input
                               type="text"
                               value={editedProfileData.name}
-                              onChange={(e) => setEditedProfileData({...editedProfileData, name: e.target.value})}
+                              onChange={(e) => setEditedProfileData({ ...editedProfileData, name: e.target.value })}
                               className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                             />
                           </div>
@@ -717,7 +720,7 @@ export default function FacultyPortal() {
                             <input
                               type="email"
                               value={editedProfileData.email}
-                              onChange={(e) => setEditedProfileData({...editedProfileData, email: e.target.value})}
+                              onChange={(e) => setEditedProfileData({ ...editedProfileData, email: e.target.value })}
                               className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                             />
                           </div>
@@ -726,7 +729,7 @@ export default function FacultyPortal() {
                             <input
                               type="text"
                               value={editedProfileData.employeeId}
-                              onChange={(e) => setEditedProfileData({...editedProfileData, employeeId: e.target.value})}
+                              onChange={(e) => setEditedProfileData({ ...editedProfileData, employeeId: e.target.value })}
                               className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                             />
                           </div>
@@ -735,7 +738,7 @@ export default function FacultyPortal() {
                             <input
                               type="text"
                               value={editedProfileData.department}
-                              onChange={(e) => setEditedProfileData({...editedProfileData, department: e.target.value})}
+                              onChange={(e) => setEditedProfileData({ ...editedProfileData, department: e.target.value })}
                               className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                             />
                           </div>
@@ -800,11 +803,11 @@ export default function FacultyPortal() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="premium-card p-6 rounded-xl">
                     <h3 className="text-subheader-md text-text-primary mb-4 font-medium">Security</h3>
                     <div className="space-y-4">
-                      <button 
+                      <button
                         onClick={() => setChangingPassword(true)}
                         className="w-full text-left premium-input px-4 py-3 rounded-lg text-body-md flex items-center justify-between hover:bg-accent-bronze/10 transition-colors"
                       >
@@ -814,7 +817,7 @@ export default function FacultyPortal() {
                         </div>
                         <Edit3 className="w-4 h-4 text-text-secondary" />
                       </button>
-                      <button 
+                      <button
                         onClick={() => setFaceSettingsActive(true)}
                         className="w-full text-left premium-input px-4 py-3 rounded-lg text-body-md flex items-center justify-between hover:bg-accent-bronze/10 transition-colors"
                       >
@@ -827,7 +830,7 @@ export default function FacultyPortal() {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Change Password Modal */}
                 {changingPassword && (
                   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -845,7 +848,7 @@ export default function FacultyPortal() {
                             <input
                               type={showCurrentPassword ? 'text' : 'password'}
                               value={passwordData.currentPassword}
-                              onChange={(e) => setPasswordData({...passwordData, currentPassword: e.target.value})}
+                              onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
                               className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                             />
                             <button
@@ -862,7 +865,7 @@ export default function FacultyPortal() {
                             <input
                               type={showNewPassword ? 'text' : 'password'}
                               value={passwordData.newPassword}
-                              onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})}
+                              onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
                               className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                             />
                             <button
@@ -879,7 +882,7 @@ export default function FacultyPortal() {
                             <input
                               type={showConfirmPassword ? 'text' : 'password'}
                               value={passwordData.confirmPassword}
-                              onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})}
+                              onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
                               className="premium-input w-full px-4 py-3 rounded-lg text-body-md"
                             />
                             <button
@@ -902,7 +905,7 @@ export default function FacultyPortal() {
                                   });
                                   return;
                                 }
-                                
+
                                 if (passwordData.newPassword.length < 6) {
                                   setNotification({
                                     message: 'Password must be at least 6 characters long!',
@@ -910,7 +913,7 @@ export default function FacultyPortal() {
                                   });
                                   return;
                                 }
-                                
+
                                 // Change password
                                 await authAPI.changePassword(passwordData.currentPassword, passwordData.newPassword);
                                 setChangingPassword(false);
@@ -952,7 +955,7 @@ export default function FacultyPortal() {
                     </div>
                   </div>
                 )}
-                
+
                 {/* Face Recognition Settings Modal */}
                 {faceSettingsActive && (
                   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
@@ -970,11 +973,11 @@ export default function FacultyPortal() {
                             <p className="text-body-sm text-text-secondary">Require face verification for attendance</p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              className="sr-only peer" 
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
                               checked={faceSettings.requireFaceVerification}
-                              onChange={(e) => setFaceSettings({...faceSettings, requireFaceVerification: e.target.checked})}
+                              onChange={(e) => setFaceSettings({ ...faceSettings, requireFaceVerification: e.target.checked })}
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-bronze"></div>
                           </label>
@@ -985,11 +988,11 @@ export default function FacultyPortal() {
                             <p className="text-body-sm text-text-secondary">Allow attendance marking through authorized proxies</p>
                           </div>
                           <label className="relative inline-flex items-center cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              className="sr-only peer" 
+                            <input
+                              type="checkbox"
+                              className="sr-only peer"
                               checked={faceSettings.allowProxyAttendance}
-                              onChange={(e) => setFaceSettings({...faceSettings, allowProxyAttendance: e.target.checked})}
+                              onChange={(e) => setFaceSettings({ ...faceSettings, allowProxyAttendance: e.target.checked })}
                             />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-bronze"></div>
                           </label>

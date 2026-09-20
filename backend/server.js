@@ -38,17 +38,17 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/smartattend
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(async () => {
-  console.log('✅ Connected to MongoDB');
-  // Load geofence data from database after successful connection
-  try {
-    await geofenceService.loadFromDb();
-    console.log('✅ Geofence data loaded');
-  } catch (error) {
-    console.error('❌ Error loading geofence data:', error.message);
-  }
-})
-.catch(err => console.error('❌ MongoDB connection error:', err));
+  .then(async () => {
+    console.log('✅ Connected to MongoDB');
+    // Load geofence data from database after successful connection
+    try {
+      await geofenceService.loadFromDb();
+      console.log('✅ Geofence data loaded');
+    } catch (error) {
+      console.error('❌ Error loading geofence data:', error.message);
+    }
+  })
+  .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -61,14 +61,11 @@ app.use('/api/admin/geofence', adminGeofenceRoutes);
 app.use('/api/timetable', timetableRoutes);
 app.use('/api/test', testRoutes);
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../nextjs-frontend/.next')));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../nextjs-frontend/.next/index.html'));
-  });
-}
+// Serve static files in production - REMOVED for separate deployment
+// The frontend is deployed as a separate service on Render
+app.get('/', (req, res) => {
+  res.send('Solvra Backend API is running');
+});
 
 const PORT = process.env.PORT || 5005;
 

@@ -5,6 +5,15 @@ const nextConfig: NextConfig = {
   images: {
     domains: ['localhost'],
   },
+  async rewrites() {
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:5005';
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${backendUrl}/api/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

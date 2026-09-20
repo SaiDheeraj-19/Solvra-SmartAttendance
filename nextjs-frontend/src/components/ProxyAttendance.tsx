@@ -43,7 +43,7 @@ export default function ProxyAttendance() {
   const [loading, setLoading] = useState(false);
   const [proxyHistory, setProxyHistory] = useState<ProxyAttendanceRecord[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error' | 'warning' | 'info'} | null>(null);
+  const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
 
   // Fetch students on component mount
   useEffect(() => {
@@ -69,7 +69,7 @@ export default function ProxyAttendance() {
     if (!searchTerm) {
       setFilteredStudents(students);
     } else {
-      const filtered = students.filter(student => 
+      const filtered = students.filter(student =>
         student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.studentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -114,32 +114,34 @@ export default function ProxyAttendance() {
 
       // Mark proxy attendance
       await attendanceAPI.proxyCheckIn(selectedStudent._id, locationData, reason);
-      
+
       setNotification({
         message: `Attendance marked successfully for ${selectedStudent.name}`,
         type: 'success'
       });
-      
+
       // Reset form
       setSelectedStudent(null);
       setReason('');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error marking proxy attendance:', error);
-      
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
       // Handle specific error cases
-      if (error.message && error.message.includes('403')) {
+      if (errorMessage.includes('403')) {
         setNotification({
           message: 'Access denied. You may not have permission to mark proxy attendance, or the student has not enabled this feature.',
           type: 'error'
         });
-      } else if (error.message && error.message.includes('404')) {
+      } else if (errorMessage.includes('404')) {
         setNotification({
           message: 'Student not found. Please try again or select a different student.',
           type: 'error'
         });
       } else {
         setNotification({
-          message: error.message || 'Failed to mark attendance. Please try again.',
+          message: errorMessage || 'Failed to mark attendance. Please try again.',
           type: 'error'
         });
       }
@@ -152,12 +154,11 @@ export default function ProxyAttendance() {
     <div className="space-y-6">
       {/* Notification */}
       {notification && (
-        <div className={`p-4 rounded-lg ${
-          notification.type === 'success' ? 'bg-green-100 text-green-800' :
-          notification.type === 'error' ? 'bg-red-100 text-red-800' :
-          notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-          'bg-blue-100 text-blue-800'
-        }`}>
+        <div className={`p-4 rounded-lg ${notification.type === 'success' ? 'bg-green-100 text-green-800' :
+            notification.type === 'error' ? 'bg-red-100 text-red-800' :
+              notification.type === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-blue-100 text-blue-800'
+          }`}>
           <div className="flex items-center justify-between">
             <span>{notification.message}</span>
             <button onClick={() => setNotification(null)}>
@@ -172,7 +173,7 @@ export default function ProxyAttendance() {
         <div className="space-y-6">
           <div className="premium-card p-6 rounded-xl">
             <h3 className="text-subheader-md text-text-primary mb-4 font-medium">Select Student</h3>
-            
+
             {/* Search */}
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-text-secondary" />
@@ -191,11 +192,10 @@ export default function ProxyAttendance() {
                 filteredStudents.map((student) => (
                   <div
                     key={student._id}
-                    className={`p-4 rounded-lg cursor-pointer transition-all ${
-                      selectedStudent?._id === student._id
+                    className={`p-4 rounded-lg cursor-pointer transition-all ${selectedStudent?._id === student._id
                         ? 'bg-accent-bronze/10 border border-accent-bronze'
                         : 'hover:bg-primary/50'
-                    }`}
+                      }`}
                     onClick={() => setSelectedStudent(student)}
                   >
                     <div className="flex items-center gap-3">
@@ -225,7 +225,7 @@ export default function ProxyAttendance() {
           {selectedStudent && (
             <div className="premium-card p-6 rounded-xl">
               <h3 className="text-subheader-md text-text-primary mb-4 font-medium">Mark Attendance for {selectedStudent.name}</h3>
-              
+
               <div className="mb-4">
                 <label className="block text-label text-text-secondary mb-2 uppercase tracking-wider">Reason for Proxy Attendance</label>
                 <textarea
@@ -235,12 +235,12 @@ export default function ProxyAttendance() {
                   onChange={(e) => setReason(e.target.value)}
                 />
               </div>
-              
+
               <div className="flex items-center gap-2 text-body-sm text-text-secondary mb-4">
                 <MapPin className="w-4 h-4" />
                 <span>Location: Campus Area (15.775002, 78.057125)</span>
               </div>
-              
+
               <button
                 onClick={handleMarkAttendance}
                 disabled={loading || !reason}
@@ -270,7 +270,7 @@ export default function ProxyAttendance() {
               Refresh
             </button>
           </div>
-          
+
           {showHistory ? (
             <div className="space-y-4 max-h-[600px] overflow-y-auto">
               {proxyHistory.length > 0 ? (
@@ -281,23 +281,22 @@ export default function ProxyAttendance() {
                         <p className="text-body-md text-text-primary font-medium">{record.user.name}</p>
                         <p className="text-body-sm text-text-secondary">{record.user.studentId}</p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-body-sm ${
-                        record.status === 'present' 
-                          ? 'bg-green-100 text-green-800' 
+                      <span className={`px-2 py-1 rounded-full text-body-sm ${record.status === 'present'
+                          ? 'bg-green-100 text-green-800'
                           : 'bg-red-100 text-red-800'
-                      }`}>
+                        }`}>
                         {record.status}
                       </span>
                     </div>
-                    
+
                     <div className="mb-2">
                       <p className="text-body-sm text-text-secondary">Marked by: {record.proxy.proxyUser.name} ({record.proxy.proxyUser.role})</p>
                       <p className="text-body-sm text-text-secondary">Reason: {record.proxy.reason}</p>
                     </div>
-                    
+
                     <div className="flex justify-between text-body-sm text-text-secondary">
                       <span>On: {new Date(record.createdAt).toLocaleDateString()}</span>
-                      <span>At: {new Date(record.checkInAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      <span>At: {new Date(record.checkInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                   </div>
                 ))

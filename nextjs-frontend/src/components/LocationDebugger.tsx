@@ -1,20 +1,37 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { authAPI } from '@/services/api';
+import { useState } from 'react';
+// import { authAPI } from '@/services/api';
 
 export default function LocationDebugger() {
+
+  interface LocationTestResult {
+    insideCampus: boolean;
+    message: string;
+    distance: {
+      kilometers: number;
+      meters: number;
+    };
+    geofence: {
+      center: {
+        lat: number;
+        lng: number;
+      };
+      radiusMeters: number;
+      source: string;
+    };
+  }
   const [location, setLocation] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<LocationTestResult | null>(null);
   const [permission, setPermission] = useState<string>('unknown');
 
   // Get current location
   const getCurrentLocation = () => {
     setLoading(true);
     setError(null);
-    
+
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser');
       setLoading(false);
@@ -66,14 +83,15 @@ export default function LocationDebugger() {
       });
 
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.message || 'Failed to test location');
       }
-      
+
       setResult(data);
-    } catch (err: any) {
-      setError(err.message || 'An error occurred while testing location');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred while testing location';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -82,7 +100,7 @@ export default function LocationDebugger() {
   return (
     <div className="bg-white rounded-lg shadow-lg p-6 max-w-2xl mx-auto">
       <h2 className="text-2xl font-bold text-gray-800 mb-4">Location Debugger</h2>
-      
+
       <div className="mb-6">
         <h3 className="text-lg font-semibold text-gray-700 mb-2">Current Location Status</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -92,7 +110,7 @@ export default function LocationDebugger() {
               {permission === 'granted' ? 'Granted' : permission === 'denied' ? 'Denied' : 'Not Requested'}
             </p>
           </div>
-          
+
           <div className="bg-gray-50 p-4 rounded-lg">
             <p className="text-sm text-gray-600">Coordinates</p>
             {location.lat !== null && location.lng !== null ? (
@@ -114,7 +132,7 @@ export default function LocationDebugger() {
         >
           {loading ? 'Getting Location...' : 'Get My Location'}
         </button>
-        
+
         <button
           onClick={testLocation}
           disabled={loading || location.lat === null || location.lng === null}
@@ -133,7 +151,7 @@ export default function LocationDebugger() {
       {result && (
         <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <h3 className="text-lg font-semibold text-blue-800 mb-2">Location Test Results</h3>
-          
+
           <div className="space-y-3">
             <div>
               <p className="text-sm text-blue-600">Status</p>
@@ -141,14 +159,14 @@ export default function LocationDebugger() {
                 {result.message}
               </p>
             </div>
-            
+
             <div>
               <p className="text-sm text-blue-600">Distance from Campus Center</p>
               <p className="font-medium text-gray-800">
                 {result.distance.kilometers.toFixed(3)} km ({result.distance.meters.toFixed(2)} m)
               </p>
             </div>
-            
+
             <div>
               <p className="text-sm text-blue-600">Campus Geofence</p>
               <p className="font-medium text-gray-800">
@@ -165,8 +183,8 @@ export default function LocationDebugger() {
         <h4 className="font-semibold mb-2">Troubleshooting Tips:</h4>
         <ul className="list-disc pl-5 space-y-1">
           <li>Ensure location permissions are granted for this site</li>
-          <li>Check that your device's GPS is enabled</li>
-          <li>If you're outside campus, you won't be able to check in</li>
+          <li>Check that your device&apos;s GPS is enabled</li>
+          <li>If you&apos;re outside campus, you won&apos;t be able to check in</li>
           <li>Try increasing the geofence radius in admin settings</li>
           <li>GPS accuracy can vary - try again in an open area</li>
         </ul>

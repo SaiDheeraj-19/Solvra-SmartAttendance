@@ -20,15 +20,26 @@ function haversineDistanceMeters(a, b) {
   return R * c;
 }
 
-function isInsideCampus({ lat, lng }) {
+// Deprecated: This method was creating circular dependencies
+// Prefer using verifyLocation which takes geofence as arg
+function isInsideCampus({ lat, lng }, geofence = null) {
   // Check if coordinates are valid numbers
   if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) {
     console.error('Invalid coordinates:', { lat, lng });
     return false;
   }
-  
-  // Use cached geofence from service (falls back to config if no DB entry)
-  const gf = geofenceService.getGeofence();
+
+  // Use provided geofence or fallback to service (backward compat)
+  // Warning: Fallback might cause circular dependency issues if called from service/controller
+  let gf = geofence;
+  if (!gf) {
+    try {
+      gf = geofenceService.getGeofence();
+    } catch (e) {
+      console.error("Error fetching geofence in util:", e);
+    }
+  }
+
   if (!gf || !gf.center) {
     console.error('No geofence configuration available');
     return false;
@@ -36,8 +47,8 @@ function isInsideCampus({ lat, lng }) {
 
   const distance = haversineDistanceMeters({ lat, lng }, gf.center);
   const inside = distance <= gf.radiusMeters;
-  
-  console.log(`Distance from campus center (${gf.source}): ${distance.toFixed(2)}m, Radius: ${gf.radiusMeters}m, Inside: ${inside}`);
+
+  // console.log(`Distance from campus center: ${distance.toFixed(2)}m, Radius: ${gf.radiusMeters}m, Inside: ${inside}`);
   return inside;
 }
 

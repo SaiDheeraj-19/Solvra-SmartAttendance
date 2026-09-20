@@ -1,6 +1,7 @@
 const Attendance = require('../models/Attendance');
 const User = require('../models/User');
 const { isInsideCampus } = require('../utils/geo');
+const geofenceService = require('../services/geofenceService');
 const NotificationService = require('../services/notificationService');
 
 function startOfDayUTC(date = new Date()) {
@@ -15,7 +16,7 @@ let notificationService;
 exports.checkIn = async (req, res) => {
   const { lat, lng, accuracy } = req.body || {};
   if (typeof lat !== 'number' || typeof lng !== 'number') {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
       error: {
         message: 'Location coordinates required',
@@ -23,14 +24,14 @@ exports.checkIn = async (req, res) => {
       }
     });
   }
-  
+
   try {
     // Convert string coordinates to numbers if needed
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lng);
-    
+
     if (isNaN(latitude) || isNaN(longitude)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
         error: {
           message: 'Invalid location coordinates',
@@ -38,9 +39,10 @@ exports.checkIn = async (req, res) => {
         }
       });
     }
-    
-    if (!isInsideCampus({ lat: latitude, lng: longitude })) {
-      return res.status(403).json({ 
+
+    const geofence = geofenceService.getGeofence();
+    if (!isInsideCampus({ lat: latitude, lng: longitude }, geofence)) {
+      return res.status(403).json({
         success: false,
         error: {
           message: 'You are not inside the campus boundary',
@@ -53,36 +55,36 @@ exports.checkIn = async (req, res) => {
       const io = req.app.get('io');
       notificationService = new NotificationService(io);
     }
-    
+
     const date = startOfDayUTC();
     const now = new Date();
-    
+
     // Get user information (no populate needed, class field doesn't exist in schema)
     const user = await User.findById(req.user._id);
     const className = user.department || 'Unknown Department';
-    
+
     const update = {
       $setOnInsert: { user: req.user._id, date },
-      $set: { 
-        status: 'present', 
+      $set: {
+        status: 'present',
         checkInAt: now,
         lastUpdated: now
       },
-      $push: { 
-        events: { 
-          type: 'enter', 
+      $push: {
+        events: {
+          type: 'enter',
           location: { lat, lng, accuracy },
           timestamp: now
-        } 
+        }
       }
     };
-    
+
     const record = await Attendance.findOneAndUpdate(
       { user: req.user._id, date },
       update,
       { upsert: true, new: true }
     );
-    
+
     // Send real-time notification
     await notificationService.sendAttendanceUpdate(
       req.user._id,
@@ -90,7 +92,7 @@ exports.checkIn = async (req, res) => {
       'present',
       'Daily Attendance'
     );
-    
+
     // Emit real-time update to faculty dashboard
     const io = req.app.get('io');
     io.to('faculty').emit('attendance-update', {
@@ -100,7 +102,7 @@ exports.checkIn = async (req, res) => {
       status: 'present',
       timestamp: now
     });
-    
+
     res.status(200).json({
       success: true,
       data: record,
@@ -108,7 +110,7 @@ exports.checkIn = async (req, res) => {
     });
   } catch (error) {
     console.error('Check-in error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       error: {
         message: 'Error during check-in',
@@ -121,7 +123,7 @@ exports.checkIn = async (req, res) => {
 exports.checkOut = async (req, res) => {
   const { lat, lng, accuracy } = req.body || {};
   if (typeof lat !== 'number' || typeof lng !== 'number') {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
       error: {
         message: 'Location coordinates required',
@@ -129,15 +131,16 @@ exports.checkOut = async (req, res) => {
       }
     });
   }
-  
+
   // Mark absent when leaving campus if during institution hours
-  const inside = isInsideCampus({ lat, lng });
-  
+  const geofence = geofenceService.getGeofence();
+  const inside = isInsideCampus({ lat, lng }, geofence);
+
   try {
     const date = startOfDayUTC();
     const record = await Attendance.findOne({ user: req.user._id, date });
     const now = new Date();
-    
+
     if (!record) {
       // If no record yet, create one and mark absent on checkout
       const created = await Attendance.create({
@@ -147,7 +150,7 @@ exports.checkOut = async (req, res) => {
         checkOutAt: now,
         events: [{ type: 'exit', location: { lat, lng, accuracy } }]
       });
-      
+
       return res.status(200).json({
         success: true,
         data: created,
@@ -161,7 +164,7 @@ exports.checkOut = async (req, res) => {
     // If user is outside, enforce absent as per requirement
     if (!inside) record.status = 'absent';
     await record.save();
-    
+
     // Emit notification to faculty room when a student exits during hours or is outside
     try {
       const io = req.app.get('io');
@@ -176,7 +179,7 @@ exports.checkOut = async (req, res) => {
     } catch (e) {
       // no-op for notification errors
     }
-    
+
     res.status(200).json({
       success: true,
       data: record,
@@ -185,7 +188,7 @@ exports.checkOut = async (req, res) => {
     });
   } catch (e) {
     console.error('Check-out error:', e);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       error: {
         message: 'Error during check-out',
@@ -198,9 +201,9 @@ exports.checkOut = async (req, res) => {
 // Proxy attendance functions
 exports.proxyCheckIn = async (req, res) => {
   const { targetUserId, lat, lng, accuracy, reason } = req.body || {};
-  
+
   if (!targetUserId) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
       error: {
         message: 'Target user ID is required for proxy attendance',
@@ -208,9 +211,9 @@ exports.proxyCheckIn = async (req, res) => {
       }
     });
   }
-  
+
   if (typeof lat !== 'number' || typeof lng !== 'number') {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
       error: {
         message: 'Location coordinates required',
@@ -218,12 +221,12 @@ exports.proxyCheckIn = async (req, res) => {
       }
     });
   }
-  
+
   try {
     // Check if the requesting user is authorized to mark proxy attendance
     const requestingUser = await User.findById(req.user._id);
     if (!requestingUser) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
         error: {
           message: 'Requesting user not found',
@@ -231,10 +234,10 @@ exports.proxyCheckIn = async (req, res) => {
         }
       });
     }
-    
+
     // Only faculty, HOD, and Dean can mark proxy attendance
     if (!['faculty', 'hod', 'dean'].includes(requestingUser.role)) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         success: false,
         error: {
           message: 'Only authorized personnel can mark proxy attendance',
@@ -242,11 +245,11 @@ exports.proxyCheckIn = async (req, res) => {
         }
       });
     }
-    
+
     // Check if the target user exists
     const targetUser = await User.findById(targetUserId);
     if (!targetUser) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
         error: {
           message: 'Target user not found',
@@ -254,10 +257,10 @@ exports.proxyCheckIn = async (req, res) => {
         }
       });
     }
-    
+
     // Check if the target user has enabled proxy attendance
     if (!targetUser.securitySettings || !targetUser.securitySettings.allowProxyAttendance) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         success: false,
         error: {
           message: 'Target user has not enabled proxy attendance',
@@ -265,13 +268,13 @@ exports.proxyCheckIn = async (req, res) => {
         }
       });
     }
-    
+
     // Convert string coordinates to numbers if needed
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lng);
-    
+
     if (isNaN(latitude) || isNaN(longitude)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
         error: {
           message: 'Invalid location coordinates',
@@ -279,10 +282,11 @@ exports.proxyCheckIn = async (req, res) => {
         }
       });
     }
-    
+
     // Check if the proxy user is inside campus
-    if (!isInsideCampus({ lat: latitude, lng: longitude })) {
-      return res.status(403).json({ 
+    const geofence = geofenceService.getGeofence();
+    if (!isInsideCampus({ lat: latitude, lng: longitude }, geofence)) {
+      return res.status(403).json({
         success: false,
         error: {
           message: 'Proxy user is not inside the campus boundary',
@@ -290,22 +294,22 @@ exports.proxyCheckIn = async (req, res) => {
         }
       });
     }
-    
+
     // Initialize notification service if not already initialized
     if (!notificationService) {
       const io = req.app.get('io');
       notificationService = new NotificationService(io);
     }
-    
+
     const date = startOfDayUTC();
     const now = new Date();
-    
+
     const className = targetUser.department || 'Unknown Department';
-    
+
     const update = {
       $setOnInsert: { user: targetUserId, date },
-      $set: { 
-        status: 'present', 
+      $set: {
+        status: 'present',
         checkInAt: now,
         lastUpdated: now,
         'proxy.isProxy': true,
@@ -313,21 +317,21 @@ exports.proxyCheckIn = async (req, res) => {
         'proxy.reason': reason,
         'proxy.approved': true // Auto-approve for authorized personnel
       },
-      $push: { 
-        events: { 
-          type: 'enter', 
+      $push: {
+        events: {
+          type: 'enter',
           location: { lat, lng, accuracy },
           timestamp: now
-        } 
+        }
       }
     };
-    
+
     const record = await Attendance.findOneAndUpdate(
       { user: targetUserId, date },
       update,
       { upsert: true, new: true }
     );
-    
+
     // Send real-time notification
     await notificationService.sendAttendanceUpdate(
       targetUserId,
@@ -335,7 +339,7 @@ exports.proxyCheckIn = async (req, res) => {
       'present',
       'Daily Attendance (Proxy)'
     );
-    
+
     // Emit real-time update to faculty dashboard
     const io = req.app.get('io');
     io.to('faculty').emit('attendance-update', {
@@ -347,7 +351,7 @@ exports.proxyCheckIn = async (req, res) => {
       proxy: true,
       proxyUserName: requestingUser.name
     });
-    
+
     res.status(200).json({
       success: true,
       data: record,
@@ -355,7 +359,7 @@ exports.proxyCheckIn = async (req, res) => {
     });
   } catch (error) {
     console.error('Proxy check-in error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       error: {
         message: 'Error during proxy check-in',
@@ -370,7 +374,7 @@ exports.getProxyAttendanceHistory = async (req, res) => {
     // Only faculty, HOD, and Dean can view proxy attendance history
     const user = await User.findById(req.user._id);
     if (!['faculty', 'hod', 'dean'].includes(user.role)) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         success: false,
         error: {
           message: 'Only authorized personnel can view proxy attendance history',
@@ -378,20 +382,20 @@ exports.getProxyAttendanceHistory = async (req, res) => {
         }
       });
     }
-    
+
     const records = await Attendance.find({ 'proxy.isProxy': true })
       .populate('user', 'name email studentId department')
       .populate('proxy.proxyUser', 'name email role')
       .sort({ createdAt: -1 })
       .limit(100); // Limit to last 100 proxy records
-    
+
     res.status(200).json({
       success: true,
       data: records
     });
   } catch (error) {
     console.error('Error fetching proxy attendance history:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       error: {
         message: 'Error fetching proxy attendance history',
@@ -404,15 +408,15 @@ exports.getProxyAttendanceHistory = async (req, res) => {
 exports.toggleProxyAttendancePermission = async (req, res) => {
   try {
     const { allowProxyAttendance } = req.body;
-    
+
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { 'securitySettings.allowProxyAttendance': allowProxyAttendance },
       { new: true }
     ).select('securitySettings.allowProxyAttendance');
-    
+
     if (!user) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
         error: {
           message: 'User not found',
@@ -420,7 +424,7 @@ exports.toggleProxyAttendancePermission = async (req, res) => {
         }
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: user.securitySettings,
@@ -428,7 +432,7 @@ exports.toggleProxyAttendancePermission = async (req, res) => {
     });
   } catch (error) {
     console.error('Error toggling proxy attendance permission:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       error: {
         message: 'Error updating proxy attendance permission',
@@ -474,11 +478,11 @@ exports.getAnalytics = async (req, res) => {
 
     // Daily attendance trends
     const dailyTrends = await Attendance.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           user: req.user._id,
           date: { $gte: startDate }
-        } 
+        }
       },
       {
         $group: {
@@ -494,11 +498,11 @@ exports.getAnalytics = async (req, res) => {
 
     // Weekly summary
     const weeklySummary = await Attendance.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           user: req.user._id,
           date: { $gte: startDate }
-        } 
+        }
       },
       {
         $group: {
@@ -506,10 +510,10 @@ exports.getAnalytics = async (req, res) => {
             week: { $week: "$date" },
             year: { $year: "$date" }
           },
-          present: { 
+          present: {
             $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] }
           },
-          absent: { 
+          absent: {
             $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] }
           }
         }
@@ -519,11 +523,11 @@ exports.getAnalytics = async (req, res) => {
 
     // Monthly summary
     const monthlySummary = await Attendance.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           user: req.user._id,
           date: { $gte: startDate }
-        } 
+        }
       },
       {
         $group: {
@@ -531,10 +535,10 @@ exports.getAnalytics = async (req, res) => {
             month: { $month: "$date" },
             year: { $year: "$date" }
           },
-          present: { 
+          present: {
             $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] }
           },
-          absent: { 
+          absent: {
             $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] }
           }
         }
@@ -549,10 +553,10 @@ exports.getAnalytics = async (req, res) => {
         $group: {
           _id: null,
           totalDays: { $sum: 1 },
-          presentDays: { 
+          presentDays: {
             $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] }
           },
-          absentDays: { 
+          absentDays: {
             $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] }
           },
           avgCheckInTime: { $avg: "$checkInAt" },
@@ -580,7 +584,7 @@ exports.getStudents = async (req, res) => {
     const students = await User.find({ role: 'student' })
       .select('name email studentId department year phone isActive')
       .sort({ studentId: 1 });
-    
+
     res.status(200).json(students);
   } catch (error) {
     console.error('Error fetching students:', error);
@@ -601,7 +605,7 @@ exports.getSubjects = async (req, res) => {
       { id: 'PHYS101', name: 'Physics I', department: 'Physics' },
       { id: 'CHEM101', name: 'Chemistry I', department: 'Chemistry' }
     ];
-    
+
     res.status(200).json(subjects);
   } catch (error) {
     console.error('Error fetching subjects:', error);
@@ -613,7 +617,7 @@ exports.getSubjects = async (req, res) => {
 exports.getFacultyOverview = async (req, res) => {
   try {
     const today = startOfDayUTC();
-    
+
     const attendance = await Attendance.find({ date: today })
       .populate('user', 'name studentId department year')
       .sort({ checkInAt: -1 });
@@ -630,7 +634,7 @@ exports.getAttendanceForDate = async (req, res) => {
   try {
     const { date } = req.params;
     const targetDate = startOfDayUTC(new Date(date));
-    
+
     const attendance = await Attendance.find({ date: targetDate })
       .populate('user', 'name studentId department year')
       .sort({ checkInAt: -1 });
@@ -656,10 +660,10 @@ exports.getFacultyAnalytics = async (req, res) => {
         $group: {
           _id: null,
           totalRecords: { $sum: 1 },
-          presentCount: { 
+          presentCount: {
             $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] }
           },
-          absentCount: { 
+          absentCount: {
             $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] }
           }
         }
@@ -674,10 +678,10 @@ exports.getFacultyAnalytics = async (req, res) => {
           _id: {
             date: { $dateToString: { format: "%Y-%m-%d", date: "$date" } }
           },
-          present: { 
+          present: {
             $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] }
           },
-          absent: { 
+          absent: {
             $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] }
           }
         }
@@ -693,10 +697,10 @@ exports.getFacultyAnalytics = async (req, res) => {
       {
         $group: {
           _id: '$userInfo.department',
-          present: { 
+          present: {
             $sum: { $cond: [{ $eq: ["$status", "present"] }, 1, 0] }
           },
-          absent: { 
+          absent: {
             $sum: { $cond: [{ $eq: ["$status", "absent"] }, 1, 0] }
           }
         }
